@@ -32,4 +32,8 @@ impl Paddle {
             DrawParam::new().dest_rect(self.rect).color(PADDLE_COLOR),
         );
     }
+
+    pub fn center_x(&self) -> f32 {
+        self.rect.x + self.rect.w / 2.0
+    }
 }

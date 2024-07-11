@@ -1,5 +1,5 @@
 use ggez::glam::Vec2;
-use ggez::graphics::{Canvas, DrawParam};
+use ggez::graphics::{Canvas, DrawParam, Rect};
 
 use crate::assets::Assets;
 use crate::constants::*;
@@ -26,6 +26,15 @@ impl Ball {
 
     pub fn draw(&self, canvas: &mut Canvas, assets: &Assets) {
         canvas.draw(&assets.ball, DrawParam::new().dest(self.pos));
+    }
+
+    pub fn bounding_box(&self) -> Rect {
+        Rect::new(
+            self.pos.x - self.radius,
+            self.pos.y - self.radius,
+            self.radius * 2.0,
+            self.radius * 2.0,
+        )
     }
 
     fn bounce_off_walls(&mut self) {
