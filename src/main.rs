@@ -6,6 +6,8 @@ use crate::game::Game;
 
 mod assets;
 mod ball;
+mod brick;
+mod collision;
 mod constants;
 mod game;
 mod paddle;
