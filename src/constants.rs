@@ -13,6 +13,9 @@ pub const BALL_SPEED_START_PPS: f32 = 420.0;
 pub const BALL_SPEED_MAX_PPS: f32 = 640.0;
 pub const BALL_SPEED_INCREMENT_PPS: f32 = 6.0;
 pub const MAX_BOUNCE_ANGLE_DEG: f32 = 60.0;
+pub const LAUNCH_SPREAD_DEG: f32 = 30.0;
+
+pub const START_LIVES: u32 = 3;
 
 pub const BRICK_ROWS: usize = 6;
 pub const BRICK_COLS: usize = 10;

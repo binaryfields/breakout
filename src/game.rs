@@ -2,6 +2,7 @@ use ggez::event::EventHandler;
 use ggez::glam::Vec2;
 use ggez::graphics::Canvas;
 use ggez::input::keyboard::KeyCode;
+use ggez::input::mouse::{self, MouseButton};
 use ggez::{Context, GameResult};
 
 use crate::assets::Assets;
@@ -17,21 +18,65 @@ pub struct Game {
     bricks: Vec<Brick>,
     assets: Assets,
     score: u32,
+    lives: u32,
     ball_speed: f32,
+    phase: Phase,
 }
 
 impl Game {
     pub fn new(ctx: &mut Context) -> GameResult<Game> {
-        let mut ball = Ball::new(Vec2::new(SCREEN_W / 2.0, SCREEN_H * 0.6));
-        ball.vel = Vec2::new(0.35, -1.0).normalize() * BALL_SPEED_START_PPS;
-        Ok(Game {
+        let mut game = Game {
             paddle: Paddle::new(),
-            ball,
+            ball: Ball::new(Vec2::ZERO),
             bricks: brick::build_grid(),
             assets: Assets::new(ctx)?,
             score: 0,
+            lives: START_LIVES,
             ball_speed: BALL_SPEED_START_PPS,
-        })
+            phase: Phase::Ready,
+        };
+        game.reset_ball();
+        Ok(game)
+    }
+
+    fn reset(&mut self, ctx: &mut Context) -> GameResult {
+        self.bricks = brick::build_grid();
+        self.score = 0;
+        self.lives = START_LIVES;
+        self.ball_speed = BALL_SPEED_START_PPS;
+        ctx.gfx.set_window_title("Breakout");
+        self.reset_ball();
+        self.switch_phase(ctx, Phase::Ready)
+    }
+
+    fn reset_ball(&mut self) {
+        self.ball.pos = Vec2::new(
+            self.paddle.center_x(),
+            self.paddle.rect.y - self.ball.radius - 2.0,
+        );
+        self.ball.vel = Vec2::ZERO;
+    }
+
+    fn launch_ball(&mut self) {
+        let angle = (fastrand::f32() * 2.0 - 1.0) * LAUNCH_SPREAD_DEG.to_radians();
+        self.ball.vel = Vec2::new(angle.sin(), -angle.cos()) * self.ball_speed;
+    }
+
+    fn lose_life(&mut self, ctx: &mut Context) -> GameResult {
+        self.lives -= 1;
+        if self.lives == 0 {
+            self.switch_phase(ctx, Phase::GameOver)
+        } else {
+            self.reset_ball();
+            self.switch_phase(ctx, Phase::Ready)
+        }
+    }
+
+    fn switch_phase(&mut self, ctx: &mut Context, phase: Phase) -> GameResult {
+        self.phase = phase;
+        let playing = phase == Phase::Playing;
+        mouse::set_cursor_hidden(ctx, playing);
+        mouse::set_cursor_grabbed(ctx, playing)
     }
 
     fn control_paddle(&mut self, ctx: &Context, dt: f32) {
@@ -64,7 +109,7 @@ impl Game {
         }
     }
 
-    fn process_brick_collision(&mut self, ctx: &mut Context) {
+    fn process_brick_collision(&mut self, ctx: &mut Context) -> GameResult {
         let mut hit_points = None;
         for brick in &mut self.bricks {
             if brick.alive
@@ -86,7 +131,11 @@ impl Game {
             self.ball.vel = self.ball.vel.normalize() * self.ball_speed;
             ctx.gfx
                 .set_window_title(&format!("Breakout \u{2014} score {}", self.score));
+            if self.bricks.iter().all(|b| !b.alive) {
+                self.switch_phase(ctx, Phase::Win)?;
+            }
         }
+        Ok(())
     }
 }
 
@@ -94,14 +143,39 @@ impl EventHandler for Game {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         let dt = ctx.time.delta().as_secs_f32().min(1.0 / 30.0);
         self.control_paddle(ctx, dt);
-        self.ball.update(dt);
-        self.process_paddle_collision();
-        self.process_brick_collision(ctx);
-        if self.ball.pos.y + self.ball.radius > SCREEN_H {
-            self.ball.pos.y = SCREEN_H - self.ball.radius;
-            self.ball.vel.y = -self.ball.vel.y.abs();
+        match self.phase {
+            Phase::Ready => self.reset_ball(),
+            Phase::Playing => {
+                self.ball.update(dt);
+                self.process_paddle_collision();
+                self.process_brick_collision(ctx)?;
+                if self.phase == Phase::Playing && self.ball.pos.y - self.ball.radius > SCREEN_H {
+                    self.lose_life(ctx)?;
+                }
+            }
+            Phase::GameOver | Phase::Win => {}
         }
         Ok(())
+    }
+
+    fn mouse_button_down_event(
+        &mut self,
+        ctx: &mut Context,
+        button: MouseButton,
+        _x: f32,
+        _y: f32,
+    ) -> GameResult {
+        if button != MouseButton::Left {
+            return Ok(());
+        }
+        match self.phase {
+            Phase::Ready => {
+                self.launch_ball();
+                self.switch_phase(ctx, Phase::Playing)
+            }
+            Phase::GameOver | Phase::Win => self.reset(ctx),
+            Phase::Playing => Ok(()),
+        }
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
@@ -113,4 +187,12 @@ impl EventHandler for Game {
         self.ball.draw(&mut canvas, &self.assets);
         canvas.finish(ctx)
     }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum Phase {
+    Ready,
+    Playing,
+    GameOver,
+    Win,
 }
