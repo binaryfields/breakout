@@ -11,6 +11,7 @@ use crate::brick::{self, Brick};
 use crate::collision;
 use crate::constants::*;
 use crate::paddle::Paddle;
+use crate::ui;
 
 pub struct Game {
     paddle: Paddle,
@@ -44,7 +45,6 @@ impl Game {
         self.score = 0;
         self.lives = START_LIVES;
         self.ball_speed = BALL_SPEED_START_PPS;
-        ctx.gfx.set_window_title("Breakout");
         self.reset_ball();
         self.switch_phase(ctx, Phase::Ready)
     }
@@ -114,8 +114,6 @@ impl Game {
             self.score += points;
             self.ball_speed = (self.ball_speed + BALL_SPEED_INCREMENT_PPS).min(BALL_SPEED_MAX_PPS);
             self.ball.vel = self.ball.vel.normalize() * self.ball_speed;
-            ctx.gfx
-                .set_window_title(&format!("Breakout \u{2014} score {}", self.score));
             if self.bricks.iter().all(|b| !b.alive) {
                 self.switch_phase(ctx, Phase::Win)?;
             }
@@ -185,6 +183,8 @@ impl EventHandler for Game {
         }
         self.paddle.draw(&mut canvas);
         self.ball.draw(&mut canvas, &self.assets);
+        ui::draw_hud(&mut canvas, &self.assets, self.score, self.lives);
+        ui::draw_overlay(ctx, &mut canvas, self.phase, self.score)?;
         canvas.finish(ctx)
     }
 }

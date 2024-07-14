@@ -11,6 +11,7 @@ mod collision;
 mod constants;
 mod game;
 mod paddle;
+mod ui;
 
 fn main() -> GameResult {
     let (mut ctx, event_loop) = ContextBuilder::new("breakout", "sebby")

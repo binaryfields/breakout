@@ -1,3 +1,4 @@
+use ggez::glam::Vec2;
 use ggez::graphics::Color;
 
 pub const SCREEN_W: f32 = 960.0;
@@ -16,6 +17,13 @@ pub const MAX_BOUNCE_ANGLE_DEG: f32 = 60.0;
 pub const LAUNCH_SPREAD_DEG: f32 = 30.0;
 
 pub const START_LIVES: u32 = 3;
+
+pub const HUD_LINE_H: f32 = 1.5;
+pub const HUD_TEXT_PX: f32 = 26.0;
+pub const HUD_SCORE_POS: Vec2 = Vec2::new(20.0, 13.0);
+pub const LIFE_SPACING: f32 = 26.0;
+pub const LIFE_Y: f32 = 25.0;
+pub const LIFE_SCALE: f32 = 0.75;
 
 pub const BRICK_ROWS: usize = 6;
 pub const BRICK_COLS: usize = 10;
@@ -77,3 +85,21 @@ pub const ROW_COLORS: [Color; BRICK_ROWS] = [
         a: 1.0,
     },
 ];
+pub const HUD_LINE_COLOR: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.15,
+};
+pub const LIVES_COLOR: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.9,
+};
+pub const OVERLAY_DIM_COLOR: Color = Color {
+    r: 0.0,
+    g: 0.0,
+    b: 0.0,
+    a: 0.6,
+};
