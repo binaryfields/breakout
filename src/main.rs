@@ -5,6 +5,7 @@ mod collision;
 mod constants;
 mod game;
 mod paddle;
+mod ui;
 
 use ggez::conf::{WindowMode, WindowSetup};
 use ggez::{event, ContextBuilder, GameResult};
