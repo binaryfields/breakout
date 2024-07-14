@@ -12,6 +12,7 @@ use crate::collision;
 use crate::constants::*;
 use crate::paddle::Paddle;
 use crate::ui;
+use crate::viewport::Viewport;
 
 pub struct Game {
     paddle: Paddle,
@@ -67,7 +68,9 @@ impl Game {
     fn control_paddle(&mut self, ctx: &Context, dt: f32) {
         let mouse_delta = ctx.mouse.delta();
         if mouse_delta.x != 0.0 || mouse_delta.y != 0.0 {
-            self.paddle.move_to(ctx.mouse.position().x);
+            let (win_w, win_h) = ctx.gfx.drawable_size();
+            let vp = Viewport::new(win_w, win_h);
+            self.paddle.move_to(vp.to_logical_x(ctx.mouse.position().x));
             return;
         }
         let held = |code: KeyCode| ctx.keyboard.is_key_pressed(code);
@@ -177,14 +180,19 @@ impl EventHandler for Game {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
+        let (win_w, win_h) = ctx.gfx.drawable_size();
+        let vp = Viewport::new(win_w, win_h);
         let mut canvas = Canvas::from_frame(ctx, BG_COLOR);
+
+        canvas.set_screen_coordinates(vp.rect);
+        ui::draw_walls(&mut canvas);
         for brick in self.bricks.iter().filter(|b| b.alive) {
             brick.draw(&mut canvas);
         }
         self.paddle.draw(&mut canvas);
         self.ball.draw(&mut canvas, &self.assets);
         ui::draw_hud(&mut canvas, &self.assets, self.score, self.lives);
-        ui::draw_overlay(ctx, &mut canvas, self.phase, self.score)?;
+        ui::draw_overlay(ctx, &mut canvas, self.phase, self.score, vp.rect)?;
         canvas.finish(ctx)
     }
 }
