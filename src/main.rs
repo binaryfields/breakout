@@ -6,6 +6,7 @@ mod constants;
 mod game;
 mod paddle;
 mod ui;
+mod viewport;
 
 use ggez::conf::{WindowMode, WindowSetup};
 use ggez::{event, ContextBuilder, GameResult};
@@ -19,7 +20,8 @@ fn main() -> GameResult {
         .window_mode(
             WindowMode::default()
                 .dimensions(SCREEN_W, SCREEN_H)
-                .resizable(false),
+                .resizable(true)
+                .min_dimensions(SCREEN_W / 2.0, SCREEN_H / 2.0),
         )
         .build()?;
     let game = Game::new(&mut ctx)?;

@@ -24,6 +24,7 @@ pub const HUD_SCORE_POS: Vec2 = Vec2::new(20.0, 13.0);
 pub const LIFE_SPACING: f32 = 26.0;
 pub const LIFE_Y: f32 = 25.0;
 pub const LIFE_SCALE: f32 = 0.75;
+pub const WALL_THICKNESS: f32 = 1.5;
 
 pub const BRICK_ROWS: usize = 6;
 pub const BRICK_COLS: usize = 10;
@@ -102,4 +103,10 @@ pub const OVERLAY_DIM_COLOR: Color = Color {
     g: 0.0,
     b: 0.0,
     a: 0.6,
+};
+pub const WALL_COLOR: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.15,
 };
