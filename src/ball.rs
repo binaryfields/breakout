@@ -25,6 +25,13 @@ impl Ball {
     }
 
     pub fn draw(&self, canvas: &mut Canvas, assets: &Assets) {
+        canvas.draw(
+            &assets.ball,
+            DrawParam::new()
+                .dest(self.pos)
+                .scale(Vec2::splat(2.2))
+                .color(BALL_GLOW_COLOR),
+        );
         canvas.draw(&assets.ball, DrawParam::new().dest(self.pos));
     }
 
