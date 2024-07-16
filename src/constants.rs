@@ -26,6 +26,9 @@ pub const LIFE_Y: f32 = 25.0;
 pub const LIFE_SCALE: f32 = 0.75;
 pub const WALL_THICKNESS: f32 = 1.5;
 
+pub const STAR_COUNT: usize = 60;
+pub const TRAIL_LEN: usize = 14;
+
 pub const BRICK_ROWS: usize = 6;
 pub const BRICK_COLS: usize = 10;
 pub const BRICK_H: f32 = 24.0;
@@ -109,4 +112,16 @@ pub const WALL_COLOR: Color = Color {
     g: 1.0,
     b: 1.0,
     a: 0.15,
+};
+pub const BALL_GLOW_COLOR: Color = Color {
+    r: 0.65,
+    g: 0.80,
+    b: 1.0,
+    a: 0.10,
+};
+pub const TRAIL_COLOR: Color = Color {
+    r: 0.55,
+    g: 0.75,
+    b: 1.0,
+    a: 1.0,
 };

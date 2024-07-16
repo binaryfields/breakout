@@ -9,6 +9,7 @@ mod ball;
 mod brick;
 mod collision;
 mod constants;
+mod effects;
 mod game;
 mod paddle;
 mod ui;

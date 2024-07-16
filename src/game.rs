@@ -10,6 +10,7 @@ use crate::ball::Ball;
 use crate::brick::{self, Brick};
 use crate::collision;
 use crate::constants::*;
+use crate::effects::Effects;
 use crate::paddle::Paddle;
 use crate::ui;
 use crate::viewport::Viewport;
@@ -19,6 +20,7 @@ pub struct Game {
     ball: Ball,
     bricks: Vec<Brick>,
     assets: Assets,
+    effects: Effects,
     score: u32,
     lives: u32,
     ball_speed: f32,
@@ -32,6 +34,7 @@ impl Game {
             ball: Ball::new(Vec2::ZERO),
             bricks: brick::build_grid(),
             assets: Assets::new(ctx)?,
+            effects: Effects::new(),
             score: 0,
             lives: START_LIVES,
             ball_speed: BALL_SPEED_START_PPS,
@@ -46,6 +49,7 @@ impl Game {
         self.score = 0;
         self.lives = START_LIVES;
         self.ball_speed = BALL_SPEED_START_PPS;
+        self.effects.clear_trail();
         self.reset_ball();
         self.switch_phase(ctx, Phase::Ready)
     }
@@ -57,6 +61,7 @@ impl Game {
 
     fn lose_life(&mut self, ctx: &mut Context) -> GameResult {
         self.lives -= 1;
+        self.effects.clear_trail();
         if self.lives == 0 {
             self.switch_phase(ctx, Phase::GameOver)
         } else {
@@ -143,6 +148,7 @@ impl Game {
 impl EventHandler for Game {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         let dt = ctx.time.delta().as_secs_f32().min(1.0 / 30.0);
+        self.effects.update(dt);
         self.control_paddle(ctx, dt);
         match self.phase {
             Phase::Ready => self.reset_ball(),
@@ -150,6 +156,7 @@ impl EventHandler for Game {
                 self.ball.update(dt);
                 self.process_paddle_collision();
                 self.process_brick_collision(ctx)?;
+                self.effects.track_ball(self.ball.pos);
                 if self.phase == Phase::Playing && self.ball.pos.y - self.ball.radius > SCREEN_H {
                     self.lose_life(ctx)?;
                 }
@@ -185,12 +192,14 @@ impl EventHandler for Game {
         let mut canvas = Canvas::from_frame(ctx, BG_COLOR);
 
         canvas.set_screen_coordinates(vp.rect);
+        self.effects.draw_stars(&mut canvas, vp.rect);
         ui::draw_walls(&mut canvas);
         for brick in self.bricks.iter().filter(|b| b.alive) {
             brick.draw(&mut canvas);
         }
-        self.paddle.draw(&mut canvas);
+        self.effects.draw_trail(&mut canvas, &self.assets);
         self.ball.draw(&mut canvas, &self.assets);
+        self.paddle.draw(&mut canvas);
         ui::draw_hud(&mut canvas, &self.assets, self.score, self.lives);
         ui::draw_overlay(ctx, &mut canvas, self.phase, self.score, vp.rect)?;
         canvas.finish(ctx)
