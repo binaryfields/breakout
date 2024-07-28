@@ -9,6 +9,8 @@ use crate::constants::*;
 pub struct Effects {
     stars: Vec<Star>,
     trail: VecDeque<Vec2>,
+    elapsed: f32,
+    transition: f32,
 }
 
 struct Star {
@@ -29,7 +31,17 @@ impl Effects {
         Effects {
             stars,
             trail: VecDeque::with_capacity(TRAIL_LEN),
+            elapsed: 0.0,
+            transition: 1.0,
         }
+    }
+
+    pub fn elapsed(&self) -> f32 {
+        self.elapsed
+    }
+
+    pub fn transition(&self) -> f32 {
+        self.transition
     }
 
     pub fn track_ball(&mut self, pos: Vec2) {
@@ -43,7 +55,13 @@ impl Effects {
         self.trail.clear();
     }
 
+    pub fn start_transition(&mut self) {
+        self.transition = 0.0;
+    }
+
     pub fn update(&mut self, dt: f32) {
+        self.elapsed += dt;
+        self.transition = (self.transition + dt / TRANSITION_TIME_SEC).min(1.0);
         for s in &mut self.stars {
             s.pos_frac.y += s.speed * s.size * dt / SCREEN_H;
             if s.pos_frac.y > 1.0 {
