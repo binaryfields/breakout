@@ -18,6 +18,8 @@ pub const LAUNCH_SPREAD_DEG: f32 = 30.0;
 
 pub const START_LIVES: u32 = 3;
 
+pub const MAX_FRAME_DT: f32 = 1.0 / 30.0;
+
 pub const HUD_LINE_H: f32 = 1.5;
 pub const HUD_TEXT_PX: f32 = 26.0;
 pub const HUD_SCORE_POS: Vec2 = Vec2::new(20.0, 13.0);
@@ -25,9 +27,13 @@ pub const LIFE_SPACING: f32 = 26.0;
 pub const LIFE_Y: f32 = 25.0;
 pub const LIFE_SCALE: f32 = 0.75;
 pub const WALL_THICKNESS: f32 = 1.5;
+pub const PROMPT_PULSE_BASE: f32 = 0.55;
+pub const PROMPT_PULSE_AMP: f32 = 0.30;
+pub const PROMPT_PULSE_HZ: f32 = 3.0;
 
 pub const STAR_COUNT: usize = 60;
 pub const TRAIL_LEN: usize = 14;
+pub const TRANSITION_TIME_SEC: f32 = 0.25;
 
 pub const BRICK_ROWS: usize = 6;
 pub const BRICK_COLS: usize = 10;

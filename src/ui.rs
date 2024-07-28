@@ -4,7 +4,52 @@ use ggez::{Context, GameResult};
 
 use crate::assets::Assets;
 use crate::constants::*;
+use crate::effects::Effects;
 use crate::game::Phase;
+
+struct Label<'a> {
+    text: &'a str,
+    y_frac: f32,
+    font_px: f32,
+    color: Color,
+    scale: f32,
+}
+
+impl<'a> Label<'a> {
+    fn new(text: &'a str, y_frac: f32, font_px: f32, color: Color) -> Self {
+        Label {
+            text,
+            y_frac,
+            font_px,
+            color,
+            scale: 1.0,
+        }
+    }
+
+    fn draw(&self, ctx: &Context, canvas: &mut Canvas) -> GameResult {
+        let mut text = Text::new(self.text);
+        text.set_scale(PxScale::from(self.font_px));
+        let dims = text.measure(ctx)?;
+        let size = Vec2::new(dims.x * self.scale, dims.y * self.scale);
+        let dest = Vec2::new(
+            (SCREEN_W - size.x) / 2.0,
+            SCREEN_H * self.y_frac - size.y / 2.0,
+        );
+        canvas.draw(
+            &text,
+            DrawParam::new()
+                .dest(dest)
+                .scale(Vec2::splat(self.scale))
+                .color(self.color),
+        );
+        Ok(())
+    }
+
+    fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+}
 
 pub fn draw_walls(canvas: &mut Canvas) {
     for x in [-WALL_THICKNESS, SCREEN_W] {
@@ -37,70 +82,45 @@ pub fn draw_overlay(
     canvas: &mut Canvas,
     phase: Phase,
     score: u32,
+    effects: &Effects,
     area: Rect,
 ) -> GameResult {
-    match phase {
-        Phase::Playing => Ok(()),
-        Phase::Ready => draw_centered(
-            ctx,
-            canvas,
-            "CLICK TO LAUNCH",
-            SCREEN_H * 0.62,
-            30.0,
-            Color::new(1.0, 1.0, 1.0, 0.75),
-        ),
-        Phase::GameOver | Phase::Win => {
-            canvas.draw(
-                &Quad,
-                DrawParam::new().dest_rect(area).color(OVERLAY_DIM_COLOR),
-            );
-            let (title, color) = if phase == Phase::Win {
-                ("YOU WIN!", ROW_COLORS[2])
-            } else {
-                ("GAME OVER", ROW_COLORS[0])
-            };
-            draw_centered(ctx, canvas, title, SCREEN_H * 0.38, 76.0, color)?;
-            draw_centered(
-                ctx,
-                canvas,
-                &format!("FINAL SCORE {score}"),
-                SCREEN_H * 0.50,
-                34.0,
-                Color::WHITE,
-            )?;
-            draw_centered(
-                ctx,
-                canvas,
-                "CLICK TO RESTART",
-                SCREEN_H * 0.60,
-                26.0,
-                Color::new(1.0, 1.0, 1.0, 0.7),
-            )
+    let (title, title_color) = match phase {
+        Phase::Playing => return Ok(()),
+        Phase::Ready => {
+            return Label::new("CLICK TO LAUNCH", 0.62, 30.0, white(pulse(effects)))
+                .draw(ctx, canvas)
         }
-    }
+        Phase::Win => ("YOU WIN!", ROW_COLORS[2]),
+        Phase::GameOver => ("GAME OVER", ROW_COLORS[0]),
+    };
+
+    fill(canvas, area, OVERLAY_DIM_COLOR);
+
+    let fade = effects.transition();
+    let score_text = format!("FINAL SCORE {score}");
+
+    let lines = [
+        Label::new(title, 0.38, 76.0, title_color).with_scale(ease_out_back(fade)),
+        Label::new(&score_text, 0.50, 34.0, white(fade)),
+        Label::new("CLICK TO RESTART", 0.60, 26.0, white(pulse(effects) * fade)),
+    ];
+    lines.iter().try_for_each(|line| line.draw(ctx, canvas))
 }
 
-fn draw_centered(
-    ctx: &Context,
-    canvas: &mut Canvas,
-    s: &str,
-    y_center: f32,
-    font_px: f32,
-    color: Color,
-) -> GameResult {
-    let mut text = Text::new(s);
-    text.set_scale(PxScale::from(font_px));
-    let dims = text.measure(ctx)?;
-    canvas.draw(
-        &text,
-        DrawParam::new()
-            .dest(Vec2::new(
-                (SCREEN_W - dims.x) / 2.0,
-                y_center - dims.y / 2.0,
-            ))
-            .color(color),
-    );
-    Ok(())
+fn white(alpha: f32) -> Color {
+    Color::new(1.0, 1.0, 1.0, alpha)
+}
+
+fn pulse(effects: &Effects) -> f32 {
+    PROMPT_PULSE_BASE + PROMPT_PULSE_AMP * (effects.elapsed() * PROMPT_PULSE_HZ).sin()
+}
+
+fn ease_out_back(t: f32) -> f32 {
+    const C1: f32 = 1.70158;
+    const C3: f32 = C1 + 1.0;
+    let u = t - 1.0;
+    1.0 + C3 * u.powi(3) + C1 * u.powi(2)
 }
 
 fn fill(canvas: &mut Canvas, rect: Rect, color: Color) {

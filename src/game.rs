@@ -15,15 +15,30 @@ use crate::paddle::Paddle;
 use crate::ui;
 use crate::viewport::Viewport;
 
-pub struct Game {
-    paddle: Paddle,
-    ball: Ball,
+struct Round {
     bricks: Vec<Brick>,
-    assets: Assets,
-    effects: Effects,
     score: u32,
     lives: u32,
     ball_speed: f32,
+}
+
+impl Default for Round {
+    fn default() -> Self {
+        Round {
+            bricks: brick::build_grid(),
+            score: 0,
+            lives: START_LIVES,
+            ball_speed: BALL_SPEED_START_PPS,
+        }
+    }
+}
+
+pub struct Game {
+    paddle: Paddle,
+    ball: Ball,
+    round: Round,
+    assets: Assets,
+    effects: Effects,
     phase: Phase,
 }
 
@@ -32,104 +47,68 @@ impl Game {
         let mut game = Game {
             paddle: Paddle::new(),
             ball: Ball::new(Vec2::ZERO),
-            bricks: brick::build_grid(),
+            round: Round::default(),
             assets: Assets::new(ctx)?,
             effects: Effects::new(),
-            score: 0,
-            lives: START_LIVES,
-            ball_speed: BALL_SPEED_START_PPS,
             phase: Phase::Ready,
         };
-        game.reset_ball();
+        game.rest_ball_on_paddle();
         Ok(game)
     }
 
     fn reset(&mut self, ctx: &mut Context) -> GameResult {
-        self.bricks = brick::build_grid();
-        self.score = 0;
-        self.lives = START_LIVES;
-        self.ball_speed = BALL_SPEED_START_PPS;
+        self.round = Round::default();
         self.effects.clear_trail();
-        self.reset_ball();
+        self.rest_ball_on_paddle();
         self.switch_phase(ctx, Phase::Ready)
     }
 
     fn launch_ball(&mut self) {
-        let angle = (fastrand::f32() * 2.0 - 1.0) * LAUNCH_SPREAD_DEG.to_radians();
-        self.ball.vel = Vec2::new(angle.sin(), -angle.cos()) * self.ball_speed;
-    }
-
-    fn lose_life(&mut self, ctx: &mut Context) -> GameResult {
-        self.lives -= 1;
-        self.effects.clear_trail();
-        if self.lives == 0 {
-            self.switch_phase(ctx, Phase::GameOver)
-        } else {
-            self.reset_ball();
-            self.switch_phase(ctx, Phase::Ready)
-        }
+        let spread = LAUNCH_SPREAD_DEG.to_radians();
+        let angle = fastrand::f32().mul_add(2.0, -1.0) * spread;
+        self.ball.vel = upward_velocity(angle, self.round.ball_speed);
     }
 
     fn control_paddle(&mut self, ctx: &Context, dt: f32) {
-        let mouse_delta = ctx.mouse.delta();
-        if mouse_delta.x != 0.0 || mouse_delta.y != 0.0 {
-            let (win_w, win_h) = ctx.gfx.drawable_size();
-            let vp = Viewport::new(win_w, win_h);
-            self.paddle.move_to(vp.to_logical_x(ctx.mouse.position().x));
+        let d = ctx.mouse.delta();
+        if d.x != 0.0 || d.y != 0.0 {
+            let x = viewport(ctx).to_logical_x(ctx.mouse.position().x);
+            self.paddle.move_to(x);
             return;
         }
-        let held = |code: KeyCode| ctx.keyboard.is_key_pressed(code);
-        let mut dir = 0.0;
-        if held(KeyCode::Left) || held(KeyCode::A) {
-            dir -= 1.0;
-        }
-        if held(KeyCode::Right) || held(KeyCode::D) {
-            dir += 1.0;
-        }
+        let held = |keys: &[KeyCode]| keys.iter().any(|&k| ctx.keyboard.is_key_pressed(k));
+        let dir = f32::from(held(&[KeyCode::Right, KeyCode::D]))
+            - f32::from(held(&[KeyCode::Left, KeyCode::A]));
         if dir != 0.0 {
             self.paddle.move_by(dir * PADDLE_SPEED_PPS * dt);
         }
     }
 
-    fn process_paddle_collision(&mut self) {
-        if self.ball.vel.y > 0.0 && self.ball.bounding_box().overlaps(&self.paddle.rect) {
-            let half_w = self.paddle.rect.w / 2.0;
-            let t = ((self.ball.pos.x - self.paddle.center_x()) / half_w).clamp(-1.0, 1.0);
-            let angle = t * MAX_BOUNCE_ANGLE_DEG.to_radians();
-            let speed = self.ball.vel.length();
-            self.ball.vel = Vec2::new(angle.sin(), -angle.cos()) * speed;
-            self.ball.pos.y = self.paddle.rect.y - self.ball.radius;
+    fn update_playing(&mut self, ctx: &mut Context, dt: f32) -> GameResult {
+        self.ball.update(dt);
+        self.bounce_off_paddle();
+        if let Some(points) = self.bounce_off_bricks() {
+            self.apply_hit(ctx, points)?;
         }
-    }
+        self.effects.track_ball(self.ball.pos);
 
-    fn process_brick_collision(&mut self, ctx: &mut Context) -> GameResult {
-        let mut hit_points = None;
-        for brick in &mut self.bricks {
-            if brick.alive
-                && collision::bounce_ball_off_rect(
-                    &mut self.ball.pos,
-                    &mut self.ball.vel,
-                    self.ball.radius,
-                    &brick.rect,
-                )
-            {
-                brick.alive = false;
-                hit_points = Some(brick.points);
-                break;
-            }
-        }
-        if let Some(points) = hit_points {
-            self.score += points;
-            self.ball_speed = (self.ball_speed + BALL_SPEED_INCREMENT_PPS).min(BALL_SPEED_MAX_PPS);
-            self.ball.vel = self.ball.vel.normalize() * self.ball_speed;
-            if self.bricks.iter().all(|b| !b.alive) {
-                self.switch_phase(ctx, Phase::Win)?;
-            }
+        if self.phase == Phase::Playing && self.is_ball_lost() {
+            self.lose_life(ctx)?;
         }
         Ok(())
     }
 
-    fn reset_ball(&mut self) {
+    fn lose_life(&mut self, ctx: &mut Context) -> GameResult {
+        self.round.lives -= 1;
+        self.effects.clear_trail();
+        if self.round.lives == 0 {
+            return self.switch_phase(ctx, Phase::GameOver);
+        }
+        self.rest_ball_on_paddle();
+        self.switch_phase(ctx, Phase::Ready)
+    }
+
+    fn rest_ball_on_paddle(&mut self) {
         self.ball.pos = Vec2::new(
             self.paddle.center_x(),
             self.paddle.rect.y - self.ball.radius - 2.0,
@@ -137,30 +116,59 @@ impl Game {
         self.ball.vel = Vec2::ZERO;
     }
 
+    fn bounce_off_paddle(&mut self) {
+        let descending = self.ball.vel.y > 0.0;
+        if !descending || !self.ball.bounding_box().overlaps(&self.paddle.rect) {
+            return;
+        }
+        let offset = (self.ball.pos.x - self.paddle.center_x()) / (self.paddle.rect.w / 2.0);
+        let angle = offset.clamp(-1.0, 1.0) * MAX_BOUNCE_ANGLE_DEG.to_radians();
+        self.ball.vel = upward_velocity(angle, self.ball.vel.length());
+        self.ball.pos.y = self.paddle.rect.y - self.ball.radius;
+    }
+
+    fn bounce_off_bricks(&mut self) -> Option<u32> {
+        let ball = &mut self.ball;
+        let brick = self.round.bricks.iter_mut().filter(|b| b.alive).find(|b| {
+            collision::bounce_ball_off_rect(&mut ball.pos, &mut ball.vel, ball.radius, &b.rect)
+        })?;
+        brick.alive = false;
+        Some(brick.points)
+    }
+
+    fn apply_hit(&mut self, ctx: &mut Context, points: u32) -> GameResult {
+        self.round.score += points;
+        self.round.ball_speed =
+            (self.round.ball_speed + BALL_SPEED_INCREMENT_PPS).min(BALL_SPEED_MAX_PPS);
+        self.ball.vel = self.ball.vel.normalize() * self.round.ball_speed;
+
+        if self.round.bricks.iter().all(|b| !b.alive) {
+            self.switch_phase(ctx, Phase::Win)?;
+        }
+        Ok(())
+    }
+
     fn switch_phase(&mut self, ctx: &mut Context, phase: Phase) -> GameResult {
         self.phase = phase;
+        self.effects.start_transition();
         let playing = phase == Phase::Playing;
         mouse::set_cursor_hidden(ctx, playing);
         mouse::set_cursor_grabbed(ctx, playing)
+    }
+
+    fn is_ball_lost(&self) -> bool {
+        self.ball.pos.y - self.ball.radius > SCREEN_H
     }
 }
 
 impl EventHandler for Game {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
-        let dt = ctx.time.delta().as_secs_f32().min(1.0 / 30.0);
+        let dt = ctx.time.delta().as_secs_f32().min(MAX_FRAME_DT);
         self.effects.update(dt);
         self.control_paddle(ctx, dt);
         match self.phase {
-            Phase::Ready => self.reset_ball(),
-            Phase::Playing => {
-                self.ball.update(dt);
-                self.process_paddle_collision();
-                self.process_brick_collision(ctx)?;
-                self.effects.track_ball(self.ball.pos);
-                if self.phase == Phase::Playing && self.ball.pos.y - self.ball.radius > SCREEN_H {
-                    self.lose_life(ctx)?;
-                }
-            }
+            Phase::Ready => self.rest_ball_on_paddle(),
+            Phase::Playing => self.update_playing(ctx, dt)?,
             Phase::GameOver | Phase::Win => {}
         }
         Ok(())
@@ -173,43 +181,60 @@ impl EventHandler for Game {
         _x: f32,
         _y: f32,
     ) -> GameResult {
-        if button != MouseButton::Left {
-            return Ok(());
-        }
-        match self.phase {
-            Phase::Ready => {
+        match (button, self.phase) {
+            (MouseButton::Left, Phase::Ready) => {
                 self.launch_ball();
                 self.switch_phase(ctx, Phase::Playing)
             }
-            Phase::GameOver | Phase::Win => self.reset(ctx),
-            Phase::Playing => Ok(()),
+            (MouseButton::Left, Phase::GameOver | Phase::Win) => self.reset(ctx),
+            _ => Ok(()),
         }
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
-        let (win_w, win_h) = ctx.gfx.drawable_size();
-        let vp = Viewport::new(win_w, win_h);
+        let vp = viewport(ctx);
         let mut canvas = Canvas::from_frame(ctx, BG_COLOR);
-
         canvas.set_screen_coordinates(vp.rect);
+
         self.effects.draw_stars(&mut canvas, vp.rect);
         ui::draw_walls(&mut canvas);
-        for brick in self.bricks.iter().filter(|b| b.alive) {
+        for brick in self.round.bricks.iter().filter(|b| b.alive) {
             brick.draw(&mut canvas);
         }
         self.effects.draw_trail(&mut canvas, &self.assets);
         self.ball.draw(&mut canvas, &self.assets);
         self.paddle.draw(&mut canvas);
-        ui::draw_hud(&mut canvas, &self.assets, self.score, self.lives);
-        ui::draw_overlay(ctx, &mut canvas, self.phase, self.score, vp.rect)?;
+        ui::draw_hud(
+            &mut canvas,
+            &self.assets,
+            self.round.score,
+            self.round.lives,
+        );
+        ui::draw_overlay(
+            ctx,
+            &mut canvas,
+            self.phase,
+            self.round.score,
+            &self.effects,
+            vp.rect,
+        )?;
         canvas.finish(ctx)
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Phase {
     Ready,
     Playing,
     GameOver,
     Win,
+}
+
+fn upward_velocity(angle: f32, speed: f32) -> Vec2 {
+    Vec2::new(angle.sin(), -angle.cos()) * speed
+}
+
+fn viewport(ctx: &Context) -> Viewport {
+    let (w, h) = ctx.gfx.drawable_size();
+    Viewport::new(w, h)
 }
