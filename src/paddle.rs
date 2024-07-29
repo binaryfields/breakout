@@ -26,11 +26,16 @@ impl Paddle {
         self.rect.x = (self.rect.x + dx).clamp(0.0, SCREEN_W - self.rect.w);
     }
 
-    pub fn draw(&self, canvas: &mut Canvas) {
-        canvas.draw(
-            &Quad,
-            DrawParam::new().dest_rect(self.rect).color(PADDLE_COLOR),
+    pub fn draw(&self, canvas: &mut Canvas, squash: f32) {
+        let w = self.rect.w * (1.0 + 0.25 * squash);
+        let h = self.rect.h * (1.0 - 0.35 * squash);
+        let rect = Rect::new(
+            self.rect.x - (w - self.rect.w) / 2.0,
+            self.rect.y + (self.rect.h - h) / 2.0,
+            w,
+            h,
         );
+        canvas.draw(&Quad, DrawParam::new().dest_rect(rect).color(PADDLE_COLOR));
     }
 
     pub fn center_x(&self) -> f32 {
