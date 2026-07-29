@@ -1,6 +1,6 @@
 use ggez::event::EventHandler;
 use ggez::glam::Vec2;
-use ggez::graphics::Canvas;
+use ggez::graphics::{Canvas, Color, Rect};
 use ggez::input::keyboard::KeyCode;
 use ggez::input::mouse::{self, MouseButton};
 use ggez::{Context, GameResult};
@@ -31,6 +31,12 @@ impl Default for Round {
             ball_speed: BALL_SPEED_START_PPS,
         }
     }
+}
+
+struct BrickHit {
+    points: u32,
+    rect: Rect,
+    color: Color,
 }
 
 pub struct Game {
@@ -87,8 +93,8 @@ impl Game {
     fn update_playing(&mut self, ctx: &mut Context, dt: f32) -> GameResult {
         self.ball.update(dt);
         self.bounce_off_paddle();
-        if let Some(points) = self.bounce_off_bricks() {
-            self.apply_hit(ctx, points)?;
+        if let Some(hit) = self.bounce_off_bricks() {
+            self.apply_hit(ctx, hit)?;
         }
         self.effects.track_ball(self.ball.pos);
 
@@ -125,19 +131,29 @@ impl Game {
         let angle = offset.clamp(-1.0, 1.0) * MAX_BOUNCE_ANGLE_DEG.to_radians();
         self.ball.vel = upward_velocity(angle, self.ball.vel.length());
         self.ball.pos.y = self.paddle.rect.y - self.ball.radius;
+        self.effects.squash_paddle();
     }
 
-    fn bounce_off_bricks(&mut self) -> Option<u32> {
+    fn bounce_off_bricks(&mut self) -> Option<BrickHit> {
         let ball = &mut self.ball;
         let brick = self.round.bricks.iter_mut().filter(|b| b.alive).find(|b| {
             collision::bounce_ball_off_rect(&mut ball.pos, &mut ball.vel, ball.radius, &b.rect)
         })?;
         brick.alive = false;
-        Some(brick.points)
+        Some(BrickHit {
+            points: brick.points,
+            rect: brick.rect,
+            color: brick.color,
+        })
     }
 
-    fn apply_hit(&mut self, ctx: &mut Context, points: u32) -> GameResult {
-        self.round.score += points;
+    fn apply_hit(&mut self, ctx: &mut Context, hit: BrickHit) -> GameResult {
+        self.round.score += hit.points;
+        self.effects.spawn_burst(&hit.rect, hit.color);
+        self.effects.spawn_popup(
+            Vec2::new(hit.rect.x + hit.rect.w / 2.0, hit.rect.y),
+            hit.points,
+        );
         self.round.ball_speed =
             (self.round.ball_speed + BALL_SPEED_INCREMENT_PPS).min(BALL_SPEED_MAX_PPS);
         self.ball.vel = self.ball.vel.normalize() * self.round.ball_speed;
@@ -203,7 +219,9 @@ impl EventHandler for Game {
         }
         self.effects.draw_trail(&mut canvas, &self.assets);
         self.ball.draw(&mut canvas, &self.assets);
-        self.paddle.draw(&mut canvas);
+        self.paddle.draw(&mut canvas, self.effects.paddle_squash());
+        self.effects.draw_particles(&mut canvas);
+        self.effects.draw_popups(&mut canvas);
         ui::draw_hud(
             &mut canvas,
             &self.assets,

@@ -34,6 +34,11 @@ pub const PROMPT_PULSE_HZ: f32 = 3.0;
 pub const STAR_COUNT: usize = 60;
 pub const TRAIL_LEN: usize = 14;
 pub const TRANSITION_TIME_SEC: f32 = 0.25;
+pub const POPUP_LIFE_SEC: f32 = 0.8;
+pub const POPUP_RISE_PPS: f32 = 40.0;
+pub const PARTICLES_PER_BRICK: usize = 14;
+pub const PARTICLE_GRAVITY: f32 = 420.0;
+pub const PADDLE_SQUASH_DECAY: f32 = 6.0;
 
 pub const BRICK_ROWS: usize = 6;
 pub const BRICK_COLS: usize = 10;
